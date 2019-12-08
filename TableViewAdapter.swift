@@ -6,175 +6,187 @@
 //  Copyright © 2017 MAC. All rights reserved.
 //
 
+// swiftlint:disable opening_brace
+// swiftlint:disable statement_position
+
 import UIKit
 
-
-class TableViewAdapter:UITableView,UITableViewDelegate,UITableViewDataSource
+class TableViewAdapter: UITableView, UITableViewDelegate, UITableViewDataSource
 {
-    var dataArray : Array<Any>!
-    
-    var cellHeight:CGFloat = 50
-    
+    var dataArray: [Any]!
+    var cellHeight: CGFloat = 50
+
     private var reuseIdentifier = "Cell"
-    
-    var AutolayoutHeightConstraint:NSLayoutConstraint?
-    
-    var CellConfigurator : ((UITableViewCell,_ index:IndexPath)->())?
-    
-    var emptyDataLabel:UILabel=UILabel()
-    
+
+    var autolayoutHeightConstraint: NSLayoutConstraint?
+
+    var cellConfigurator: ((UITableViewCell, _ index: IndexPath) -> Void)?
+
+    var emptyDataLabel: UIView!
+
     /// cell xib name should match theclass name
-    func setup(cell:String,data:Array<Any>,cell_Height:CGFloat,AL_Height:NSLayoutConstraint?,cellConfig:((UITableViewCell,_ index:IndexPath)->())?)
+    func setup<CellType: UITableViewCell>(cellset: String? = nil, data: [Any],
+                                          cellHeight: CGFloat, alHeight: NSLayoutConstraint?,
+                                          cellConfig: ((CellType, _ index: IndexPath) -> Void)?)
     {
-       
+
         dataArray = data
-        cellHeight = cell_Height
-        AutolayoutHeightConstraint = AL_Height
-        CellConfigurator = cellConfig
-        reuseIdentifier = cell;
-        self.register(UINib(nibName: cell, bundle: nil), forCellReuseIdentifier: cell)
-        
-        self.delegate = self
-        self.dataSource = self
-        
-    }    
-    
+        self.cellHeight = cellHeight
+        autolayoutHeightConstraint = alHeight
+
+        cellConfigurator = { (cell: UITableViewCell, _ index: IndexPath) in
+            if let cellConfig = cellConfig, let cell = cell as? CellType {
+                cellConfig(cell, index)
+            }
+            else
+            { print("-- error: couldn't cast cell") }
+        }
+
+        let cell = cellset ?? String(describing: CellType.self)
+        reuseIdentifier = cell
+        register(UINib(nibName: cell, bundle: nil), forCellReuseIdentifier: cell)
+
+        delegate = self
+        dataSource = self
+
+    }
+
+    func setEmptyDataSetView(emptyView: UIView) {
+        emptyDataLabel = emptyView
+        emptyDataLabel.isHidden = dataArray.count != 0
+    }
     /// emptyData---
-    func SetEmptyDataLabel(label:String)
+    func setEmptyDataLabel(text: String, txtColor: UIColor = #colorLiteral(red: 0.2549019754, green: 0.2745098174, blue: 0.3019607961, alpha: 1), fontSize: CGFloat = 15, font: UIFont)
     {
-        emptyDataLabel.textColor = #colorLiteral(red: 0.2549019754, green: 0.2745098174, blue: 0.3019607961, alpha: 1)
-        emptyDataLabel.text = label
+        let emptyLabel = UILabel()
+        emptyLabel.textColor = txtColor
+        emptyLabel.text = text
+        emptyLabel.font.withSize(fontSize)
+        emptyLabel.font = font
+
+        setEmptyDataLabel(emptyView: emptyLabel)
+    }
+
+    private func setEmptyDataLabel(emptyView: UIView)
+    {
+        emptyDataLabel = emptyView
         addSubview(emptyDataLabel)
         emptyDataLabel.center = center
         emptyDataLabel.sizeToFit()
     }
+
     override func reloadData()
     {
         super.reloadData()
-        emptyDataLabel.isHidden = dataArray.count != 0
+        if let emptyDataLabel = emptyDataLabel {
+            emptyDataLabel.isHidden = dataArray.count != 0
+        }
     }
+
+    func reloadData(newData: [Any])
+    {
+        dataArray = newData
+        reloadData()
+    }
+
     override func layoutSubviews() {
-       super.layoutSubviews()
-        
-        emptyDataLabel.center = CGPoint(x: center.x, y: height/2)
-        
+        super.layoutSubviews()
+        if let emptyDataLabel = emptyDataLabel {
+            emptyDataLabel.center = CGPoint(x: center.x, y: height/2)
+        }
     }
     ///---
-    
-    
+
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int
     {
         return dataArray.count
     }
-    
-    
+
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat
     {
-         return cellHeight
+        return cellHeight
     }
-    
+
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell
     {
-        let cell = tableView.dequeueReusableCell(withIdentifier: reuseIdentifier)!
-        CellConfigurator?(cell,indexPath)
+        let cell = dequeueReusableCell(withIdentifier: reuseIdentifier)!
+        cellConfigurator?(cell, indexPath)
         return cell
     }
-    
-    func AddItem(item:Any,Animated:Bool)
+
+    func addItem(item: Any, animated: Bool)
     {
         dataArray.append(item)
         self.reloadData()
-        Stretch(Animated: Animated)
+        stretch(animated: animated)
     }
-    func removeItem(at index: IndexPath,Animated:Bool)
+
+    func removeItem(at index: IndexPath, animated: Bool)
     {
         dataArray.remove(at: index.row)
         self.reloadData()
-        Stretch(Animated: Animated)
+        stretch(animated: animated)
     }
-    func Stretch(Animated:Bool)
+
+    func stretch(animated: Bool)
     {
-        if let AutolayoutHeightConstraint = AutolayoutHeightConstraint
+        if let autolayoutHeightConstraint = autolayoutHeightConstraint
         {
-            let topView = self.topMostController()?.view
-            if Animated && topView != nil
+            let topView = superview?.superview
+            if animated && topView != nil
             {
-                UIView.animate(withDuration:0.5, animations:
-                    {
-                        AutolayoutHeightConstraint.constant = self.contentSize.height
+                UIView.animate(withDuration: 0.5, animations:
+                    { [unowned self] in
+                        autolayoutHeightConstraint.constant = self.contentSize.height
                         topView?.layoutIfNeeded()
                 })
-            }
-            else
+            } else
             {
-                AutolayoutHeightConstraint.constant = self.contentSize.height
+                autolayoutHeightConstraint.constant = contentSize.height
             }
-            
+
         }
     }
-    
-    
-    
+
 }
 
 
-// usage
-
-class sampleTableViewCell: UITableViewCell {
-    
-    @IBOutlet weak var txtLabel:UILabel!
-    
-    override func awakeFromNib()
-    {
-        super.awakeFromNib()
-    }
-    
-    func setup(data:String)
-    {
-        txtLabel.text = data
-        
-    }
-    
-    
-}
-
-class client: UIViewController
+class Client: UIViewController
 {
-    @IBOutlet weak var TableViewSample: TableViewAdapter!
-    @IBOutlet weak var ConstCollectionHeight : NSLayoutConstraint!// constraint of the collection view Height / if you ont want animation ignore this line
-    
-    var dataArray : [String]? = ["hi","wow"] // if there is no initial data, you can ignore this line
-    
-    
+    @IBOutlet weak var tableViewSample: TableViewAdapter!
+    @IBOutlet weak var constCollectionHeight : NSLayoutConstraint!// constraint of the collection view Height / if you ont want animation ignore this line
+
+    var dataArray: [String]? = ["hi", "wow"] // if there is no initial data, you can ignore this line
+
+
     override func viewDidLoad()
     {
         super.viewDidLoad()
-        
+
         // empty data label that show when there is no data
-        TableViewSample.SetEmptyDataLabel(label: "No data")
-        
+        tableViewSample.setEmptyDataLabel(label: "No data")
+
         // suting up the collectionViewAdapter
-       
-        TableViewSample.setup(cell: "sampleCollectionCell", data: dataArray ?? [], cell_Height: 50, AL_Height: ConstCollectionHeight /* optional */ )
+
+        tableViewSample.setup(cell: "sampleCollectionCell", data: dataArray ?? [], cellHeight: 50,
+                              alHeight: constCollectionHeight /* optional */ )
         { (cell, index) in
-            (cell as! sampleTableViewCell).setup(data: self.TableViewSample.dataArray[index.row] as! String)
+            (cell as! sampleTableViewCell).setup(data: self.tableViewSample.dataArray[index.row] as! String)
         }
-        
+
     }
-    
+
     @IBAction func addItemClicked(_ sender: Any)
     {
-        
-        self.TableViewSample.AddItem(item: "hello", Animated: true)
-        
+
+        self.tableViewSample.addItem(item: "hello", animated: true)
+
     }
-    
+
     @IBAction func removeItemClicked(_ sender: Any)
     {
-        self.TableViewSample.removeItem(at: IndexPath(row: 1, section: 0), Animated: true)
-        
-    }
-    
-    
-}
+        self.tableViewSample.removeItem(at: IndexPath(row: 1, section: 0), animated: true)
 
+    }
+
+}
