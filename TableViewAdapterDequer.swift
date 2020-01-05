@@ -11,20 +11,28 @@
 
 import UIKit
 
+class Reference<T> {
+    var array: T
+    init(array: T) {
+        self.array = array
+    }
+}
+
 class TableViewAdapterDequer: UITableView, UITableViewDelegate, UITableViewDataSource
 {
-    var dataArray: [Any] = []
-    var dequeuers: [TableViewCellDequeuer] = []
+
+//    var dequeuers = Reference(array: [TableViewAdapterCellDequeuer]())
+    var dequeuers: [TableViewAdapterCellDequeuer] = []
     var isDequeuer = false
     var cellHeight: CGFloat = 50
 
-    private var reuseIdentifier = "Cell"
+    private var reuseIdentifier = "CellIdentfier"
 
     var autolayoutHeightConstraint: NSLayoutConstraint?
 
-    var cellConfigurator: ((UITableViewCell, _ index: IndexPath) -> Void)?
+    private var cellConfigurator: ((UITableViewCell, _ index: IndexPath) -> Void)?
 
-    var emptyDataLabel: UIView!
+    private var emptyDataLabel: UIView!
 
     var emptyData: ((_ isEmpty: Bool) -> Void)? {
         didSet {
@@ -32,14 +40,19 @@ class TableViewAdapterDequer: UITableView, UITableViewDelegate, UITableViewDataS
         }
     }
 
+    var setCount: (() -> Int)!
+
+    var stretchingMaxLenght: CGFloat = 0
+
     /// cell xib name should match theclass name
-    func setup<CellType: UITableViewCell>(cellset: String? = nil, data: [Any],
-                                          cellHeight: CGFloat, alHeight: NSLayoutConstraint?,
-                                          cellConfig: ((CellType, _ index: IndexPath) -> Void)?)
+    func setup<CellType: UITableViewCell>(cellset: String? = nil,
+                                          cellHeight: CGFloat, autolayoutHeight: NSLayoutConstraint?,
+                                          cellConfig: ((CellType, _ index: IndexPath) -> Void)?, setCount: @escaping (() -> Int))
     {
-        dataArray = data
+
+        self.setCount = setCount
         self.cellHeight = cellHeight
-        autolayoutHeightConstraint = alHeight
+        autolayoutHeightConstraint = autolayoutHeight
 
         cellConfigurator = { (cell: UITableViewCell, _ index: IndexPath) in
             if let cellConfig = cellConfig, let cell = cell as? CellType {
@@ -57,13 +70,15 @@ class TableViewAdapterDequer: UITableView, UITableViewDelegate, UITableViewDataS
         dataSource = self
     }
 
-    func setupWithDequeuers(registering: [(nib: UINib?, identifier: String)], data: [TableViewCellDequeuer], alHeight: NSLayoutConstraint?) {
+    func setupWithDequeuers(registering: [(nib: UINib?, identifier: String)],
+                            data: [TableViewAdapterCellDequeuer],
+                            autolayoutHeight: NSLayoutConstraint?) {
         isDequeuer = true
         registering.forEach { (regInfo) in
             register(regInfo.nib, forCellReuseIdentifier: regInfo.identifier)
         }
         dequeuers = data
-        autolayoutHeightConstraint = alHeight
+        autolayoutHeightConstraint = autolayoutHeight
 
         delegate = self
         dataSource = self
@@ -75,7 +90,7 @@ class TableViewAdapterDequer: UITableView, UITableViewDelegate, UITableViewDataS
     }
 
     func validateEmptyDataset() {
-        let isEmpty = isDequeuer ? dequeuers.count == 0 : dataArray.count == 0
+        let isEmpty = isDequeuer ? dequeuers.count == 0 : setCount() == 0
         emptyData?(isEmpty)
         if let emptyDataLabel = emptyDataLabel {
             emptyDataLabel.isHidden = !isEmpty
@@ -107,13 +122,7 @@ class TableViewAdapterDequer: UITableView, UITableViewDelegate, UITableViewDataS
         validateEmptyDataset()
     }
 
-    func reloadData(newData: [Any])
-    {
-        dataArray = newData
-        reloadData()
-    }
-
-    func reloadData(newData: [TableViewCellDequeuer])
+    func reloadData(newData: [TableViewAdapterCellDequeuer])
     {
         dequeuers = newData
         reloadData()
@@ -129,7 +138,7 @@ class TableViewAdapterDequer: UITableView, UITableViewDelegate, UITableViewDataS
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int
     {
-        return isDequeuer ? dequeuers.count : dataArray.count
+        return isDequeuer ? dequeuers.count : setCount()
     }
 
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat
@@ -148,14 +157,7 @@ class TableViewAdapterDequer: UITableView, UITableViewDelegate, UITableViewDataS
         }
     }
 
-    func addItem(item: Any, animated: Bool)
-    {
-        dataArray.append(item)
-        self.reloadData()
-        stretch(animated: animated)
-    }
-
-    func addItem(item: TableViewCellDequeuer, animated: Bool)
+    func addItem(item: TableViewAdapterCellDequeuer, animated: Bool)
     {
         dequeuers.append(item)
         self.reloadData()
@@ -164,7 +166,7 @@ class TableViewAdapterDequer: UITableView, UITableViewDelegate, UITableViewDataS
 
     func removeItem(at index: IndexPath, animated: Bool)
     {
-        let _ = isDequeuer ? dequeuers.remove(at: index.row) : dataArray.remove(at: index.row)
+        if isDequeuer { dequeuers.remove(at: index.row) }//dataArray.remove(at: index.row)
         self.reloadData()
         stretch(animated: animated)
     }
@@ -178,7 +180,7 @@ class TableViewAdapterDequer: UITableView, UITableViewDelegate, UITableViewDataS
             {
                 UIView.animate(withDuration: 0.5, animations:
                     { [unowned self] in
-                        autolayoutHeightConstraint.constant = self.contentSize.height + withMargen
+                        autolayoutHeightConstraint.constant = min(self.stretchingMaxLenght, self.contentSize.height + withMargen)
                         topView?.layoutIfNeeded()
                 })
             } else
@@ -202,7 +204,7 @@ public extension TableViewCellRegister {
         tableView.register(nib, forCellReuseIdentifier: identifier)
     }
 
-    static func TableRegistrationData() -> (nib: UINib?, identifier: String) {
+    static func tableRegistrationData() -> (nib: UINib?, identifier: String) {
         return (nib, identifier)
     }
 
@@ -221,7 +223,7 @@ public extension TableViewCellRegister {
 
 }
 
-public protocol TableViewCellDequeuer {
+public protocol TableViewAdapterCellDequeuer {
     var cellHeight: CGFloat { get set }
     func dequeue(on tableView: UITableView, for indexPath: IndexPath) -> UITableViewCell
 }
