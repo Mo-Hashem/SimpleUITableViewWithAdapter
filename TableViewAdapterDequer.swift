@@ -11,17 +11,10 @@
 
 import UIKit
 
-class Reference<T> {
-    var array: T
-    init(array: T) {
-        self.array = array
-    }
-}
 
 class TableViewAdapterDequer: UITableView, UITableViewDelegate, UITableViewDataSource
 {
 
-//    var dequeuers = Reference(array: [TableViewAdapterCellDequeuer]())
     var dequeuers: [TableViewAdapterCellDequeuer] = []
     var isDequeuer = false
     var cellHeight: CGFloat = 50
@@ -40,7 +33,7 @@ class TableViewAdapterDequer: UITableView, UITableViewDelegate, UITableViewDataS
         }
     }
 
-    var setCount: (() -> Int)!
+    var setCount: (() -> Int) = { return 0 }
 
     var stretchingMaxLenght: CGFloat = 0
 
@@ -166,7 +159,7 @@ class TableViewAdapterDequer: UITableView, UITableViewDelegate, UITableViewDataS
 
     func removeItem(at index: IndexPath, animated: Bool)
     {
-        if isDequeuer { dequeuers.remove(at: index.row) }//dataArray.remove(at: index.row)
+        if isDequeuer { dequeuers.remove(at: index.row) }
         self.reloadData()
         stretch(animated: animated)
     }
